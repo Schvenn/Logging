@@ -1,0 +1,119 @@
+<#-----------------------------------------------------------------------------------------------------------------------------------
+I am presenting three methods here to use the Recycle Bin in PowerShell.
+The Logging module I wrote will work with or without the Recycle functionality, but I decided to include it, because permanently deleting log files is not always the best idea.
+Having a way to recover them therefore, provides an extra layer of safety.
+
+If you're going to use one, save a Recycle.psm1 file in a Recycle directory, inside your Modules path and save it with one of the code snippets from the three options below.
+Add "ipmo recycle" to your $profile and restart PowerShell and you're good to go.
+You will now have access to the recycle command of your choosing, whenever you want.
+
+I include these separately, because I did not in any way design them.
+I relied entirely on public sources, ChatGPT and thorough testing.
+
+This first method is super simple, uses VisualBasic and is really only useful for simple file deletion.
+It may be enough for most users, or in cases where you want to include it directly within a specific module.
+-----------------------------------------------------------------------------------------------------------------------------------#>
+
+function Recycle ($path) {# VisualBasic loader to use Recycle Bin.
+$Resolved = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue; Add-Type -AssemblyName Microsoft.VisualBasic
+try {[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($Resolved.Path,'OnlyErrorDialogs','SendToRecycleBin'); Write-Host "Sent to Recycle Bin: $($Resolved.Path)"} catch {Write-Warning "Failed to delete: $_"}}
+
+<#-----------------------------------------------------------------------------------------------------------------------------------
+Here is the second, far more robust option and my personal preference.
+This one supports almost every option that remove-item does for files, as well as directories, and also uses VisualBasic.
+You cannot use it for removing items like hash tables, commands or Registry keys, but that wouldn't make sense, anyway.
+I use this one as it's own, fully independent module, rather than including the aforementioned abbreviated version within individual modules.
+-----------------------------------------------------------------------------------------------------------------------------------#>
+
+function recycle {# Public module to mimic most features of the Remove-Item cmdlet, but with safe, Recycle Bin support.
+
+# Act like a cmdlet, with -whatif and -confirm support, and user confirmation dependent on user settings.
+[CmdletBinding(SupportsShouldProcess=$true, ConfirmImpact='Medium')]
+
+# Accepts -fullname, -recurse, -force
+param([Parameter(Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true, Position=0)] [Alias('FullName')] [Object[]]$Path, [switch]$Recurse, [switch]$Force)
+
+# Add the Visual Basic library.
+begin {Add-Type -AssemblyName Microsoft.VisualBasic}
+
+# Resolve every path.
+process {foreach ($item in $Path) {if ($item -is [string]) {$resolvedPaths = Get-Item -LiteralPath $item -ErrorAction SilentlyContinue
+
+# Error-catching for unresolved paths.
+if (-not $resolvedPaths) {$resolvedPaths = Get-Item -Path $item -ErrorAction SilentlyContinue}
+if (-not $resolvedPaths) {Write-Warning "Path not found: $item"; continue}}
+
+# Accepts piped objects, such as those sent from Get-Item or Get-ChildItem, etc.
+elseif ($item -is [System.IO.FileSystemInfo]) {$resolvedPaths = $item}
+
+# Error-catching for unsupported types like hash tables and Registry keys.
+else {Write-Warning "Unsupported input type: $($item.GetType().Name)"; continue}
+
+# Extracts full names for each legitimate object identified.
+foreach ($resolved in @($resolvedPaths)) {$targetPath = $resolved.FullName; $isDirectory = $resolved.PSIsContainer
+
+# Error-checking if the object is a directory, but -recurse was not specified.
+if ($isDirectory -and -not $Recurse) {Write-Warning "Directory found but -Recurse not specified: $targetPath"; continue}
+
+# Support for -whatif through PSCmdlet and then directory delete when -recurse is specified and supports -force.
+if ($PSCmdlet.ShouldProcess($targetPath, 'Send to Recycle Bin')) {try {if ($isDirectory) {$cancelOption = if ($Force) {[Microsoft.VisualBasic.FileIO.UICancelOption]::ThrowException}
+else {[Microsoft.VisualBasic.FileIO.UICancelOption]::DoNothing}
+[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($targetPath, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin, $cancelOption)}
+
+# File deletion, which doesn't require -recurse, but requires -force for read-only files.
+elseif (-not $isDirectory) {$fileInfo = Get-Item -LiteralPath $targetPath
+if (-not $Force) {if ($fileInfo.Attributes -band [System.IO.FileAttributes]::ReadOnly) {Write-Warning "File '$targetPath' is read-only. Use -Force to override."; continue}}
+else {if ($fileInfo.Attributes -band [System.IO.FileAttributes]::ReadOnly) {$fileInfo.Attributes = $fileInfo.Attributes -bxor [System.IO.FileAttributes]::ReadOnly}}
+[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($targetPath, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)}
+Write-Verbose "Sent to Recycle Bin: $targetPath"}
+
+# Error-catching
+catch {Write-Warning "Failed to delete '$targetPath': $_"}}}}}}
+
+<#-----------------------------------------------------------------------------------------------------------------------------------
+This third and final function below was adapted from common Windows API interop examples circulating in PowerShell communities and Microsoft docs: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shfileoperationw
+
+I'm including it here as supplemental information, because it's a very direct, low-level method of gaining access to the Recycle Bin and therefore, with some additional tweaking, may provide greater flexibility.
+I admit though, that I don't understand most of what's going on in this code, nor do I care to learn.
+So, you decide which way you want to go, if any.
+Remember that you don't actually have to use any of these, because the Logging function will delete old log files using the traditional and irreversible remove-item method native to PowerShell, if it doesn't detect the availability of the recycle function.
+-----------------------------------------------------------------------------------------------------------------------------------#>
+
+<# --------------- Public Code --------------- #>
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class RecycleBin
+{
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        public string pFrom;
+        public string pTo;
+        public ushort fFlags;
+        public bool fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        public string lpszProgressTitle;
+    }
+    public const int FO_DELETE = 3;
+    public const ushort FOF_ALLOWUNDO = 0x40;
+    public const ushort FOF_NOCONFIRMATION = 0x10;
+    public const ushort FOF_SILENT = 0x4;
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+    public static bool Delete(string path)
+    {
+        SHFILEOPSTRUCT shf = new SHFILEOPSTRUCT();
+        shf.wFunc = FO_DELETE;
+        shf.pFrom = path + "\0\0";
+        shf.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT;
+        int result = SHFileOperation(ref shf);
+        return (result == 0);
+    }
+}
+"@
+<# --------------- End of Public Code --------------- #>
+
+function Recycle {param([string]$Path); [RecycleBin]::Delete($Path) | Out-Null}
