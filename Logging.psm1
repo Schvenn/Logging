@@ -6,8 +6,9 @@ $logDirectory = "$powershell\Transcripts"; $logFiles = Get-ChildItem -Path $logD
 
 # Delete old log files.
 Get-ChildItem -Path $logDirectory -Filter *.log | ForEach-Object {if ($_ -match '\d{2}-\d{2}-\d{4}') {$dateString = $matches[0]
-$logDate = [datetime]::ParseExact($dateString, 'dd-MM-yyyy', $null)
-if ($logDate.Date -lt $threshold) {Remove-Item $_.FullName -Force}}}
+$logDate = [datetime]::ParseExact($dateString, 'MM-dd-yyyy', $null)
+if ($logDate.Date -lt $threshold) {if (Get-Command Remove-ToRecycleBin -ErrorAction SilentlyContinue) {Remove-ToRecycleBin $_.FullName}
+else {Remove-Item $_.FullName -Force}}}}
 # Reacquire list of log files, in case it changed.
 $logFiles = Get-ChildItem -Path $logDirectory -Filter *.log
 
@@ -51,7 +52,7 @@ if ($e.InvocationInfo -and $e.InvocationInfo.PositionMessage) {$position = $e.In
 Write-Host "$($position.trim())" -f white; Write-Host ("-"*100) -f yellow}}; ""}
 
 function log ($mode){# Toggle PowerShell logging.
-$logdirectory = Join-Path $powershell transcripts; $logfile = "$logdirectory\Powershell log - $(Get-Date -Format 'dd-MM-yyyy_HH꞉mm').log"
+$logdirectory = Join-Path $powershell transcripts; $logfile = "$logdirectory\Powershell log - $(Get-Date -Format 'MM-dd-yyyy_HH꞉mm').log"
 
 # Start and Stop Logging functions.
 function startlogging {""; cleanlogfiles; Start-Transcript "$logfile" | Write-Host -f green; $global:TranscriptRunning = $true; ""; return}
@@ -69,7 +70,7 @@ if ($mode -and $mode -notmatch "(?i)^st(art|op|atus)$") {Write-Host -f cyan "`nU
 elseif ($global:TranscriptRunning = $true) {stoplogging; return}
 else {startlogging; return}}
 
-Export-ModuleMember -Function lasterrors, log
+Export-ModuleMember -Function lasterrors, log, remove-torecyclebin
 
 <#
 ## Overview
