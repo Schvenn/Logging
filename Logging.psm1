@@ -7,7 +7,7 @@ $logDirectory = "$powershell\Transcripts"; $logFiles = Get-ChildItem -Path $logD
 # Delete old log files.
 Get-ChildItem -Path $logDirectory -Filter *.log | ForEach-Object {if ($_ -match '\d{2}-\d{2}-\d{4}') {$dateString = $matches[0]
 $logDate = [datetime]::ParseExact($dateString, 'MM-dd-yyyy', $null)
-if ($logDate.Date -lt $threshold) {if (Get-Command Remove-ToRecycleBin -ErrorAction SilentlyContinue) {Remove-ToRecycleBin $_.FullName}
+if ($logDate.Date -lt $threshold) {if (Get-Command Recycle -ErrorAction SilentlyContinue) {Recycle $_.FullName}
 else {Remove-Item $_.FullName -Force}}}}
 # Reacquire list of log files, in case it changed.
 $logFiles = Get-ChildItem -Path $logDirectory -Filter *.log
