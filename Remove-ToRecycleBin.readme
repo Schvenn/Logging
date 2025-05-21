@@ -1,0 +1,51 @@
+<#
+The function below was adapted from common Windows API interop examples circulating in PowerShell communities and Microsoft docs: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shfileoperationw
+
+I did not write it and cannot take credit for it.
+Use it if you want to ensure that you can delete files from PowerShell into the Recycle Bin, rather than the fully destructive Remove-Item method that is the default for PowerShell.
+Just add it as a code in your $profile, or as part of the logging.psm1 file.
+I didn't add it there, because it's not my code, but I'm including here as supplemental information.
+Of course, if you add it to your own $profile, it can be used anywhere in your PowerShell environment.
+
+I added this functionality to the logging module because permanently deleting log files may not always be the best idea.
+So, having a way out is advisable.
+#>
+
+<# --------------- Public Code --------------- #>
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class RecycleBin
+{
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        public string pFrom;
+        public string pTo;
+        public ushort fFlags;
+        public bool fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        public string lpszProgressTitle;
+    }
+    public const int FO_DELETE = 3;
+    public const ushort FOF_ALLOWUNDO = 0x40;
+    public const ushort FOF_NOCONFIRMATION = 0x10;
+    public const ushort FOF_SILENT = 0x4;
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+    public static bool Delete(string path)
+    {
+        SHFILEOPSTRUCT shf = new SHFILEOPSTRUCT();
+        shf.wFunc = FO_DELETE;
+        shf.pFrom = path + "\0\0";
+        shf.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT;
+        int result = SHFileOperation(ref shf);
+        return (result == 0);
+    }
+}
+"@
+<# --------------- End of Public Code --------------- #>
+
+function Remove-ToRecycleBin {param([string]$Path); [RecycleBin]::Delete($Path) | Out-Null}
