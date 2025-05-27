@@ -147,12 +147,7 @@ if (-not $content) {Write-Host -f red "`nFile is empty.`n"; return}
 
 $separators = @(0) + (0..($content.Count - 1) | Where-Object {$content[$_] -match '^[=]{100}$'}); $pageSize = 35; $pos = 0; $logName = [System.IO.Path]::GetFileName($log); $searchHits = @(); $currentSearchIndex = -1
 
-function Get-BreakPoint {param($start)
-$maxEnd = [Math]::Min($start + $pageSize - 1, $content.Count - 1)
-for ($i = $start + 29; $i -le $maxEnd; $i++) {if ($content[$i] -match '^[-=]{100}$') {return $i}}
-return $maxEnd}
-
-function Get-BreakPoint {param($start); return [Math]::Min($start + $pageSize - 1, $content.Count - 1)}
+function Get-BreakPoint {param($start); $maxEnd = [Math]::Min($start + $pageSize - 1, $content.Count - 1); for ($i = $start + 29; $i -le $maxEnd; $i++) {if ($content[$i] -match '^[-=]{100}$') {return $i}}; return $maxEnd}
 
 function Show-Page {cls; $start = $pos; $end = Get-BreakPoint $start; $pageLines = $content[$start..$end]; $highlight = if ($searchTerm) {"(?i)" + [regex]::Escape($searchTerm)} else {$null}
 foreach ($line in $pageLines) {if ($line -match '^[-=]{100}$') {Write-Host -ForegroundColor Yellow $line}
@@ -166,7 +161,7 @@ $errormessage = "`t`t`t`t`t"; $searchmessage = " Search Commands`t`t`t"
 while ($true) {Show-Page; $pageNum = [math]::Floor($pos / $pageSize) + 1; $totalPages = [math]::Ceiling($content.Count / $pageSize)
 if ($searchHits.Count -gt 0) {$currentMatch = ($searchHits | Where-Object {$_ -eq $pos} | ForEach-Object { [array]::IndexOf($searchHits, $_) + 1 })
 if ($currentMatch) {$searchmessage = " Match $currentMatch of $($searchHits.Count)`t`t`t`t"}}
-Write-Host ""; Write-Host -f yellow ("=" * 120); Write-Host -f white "$logName" -n; Write-Host -f red "`t$errormessage`t`t`t" -n; Write-Host -f cyan "(Page $pageNum of $totalPages)"
+Write-Host ""; Write-Host -f yellow ("=" * 130); Write-Host -f white "$logName" -n; Write-Host -f red "`t$errormessage`t`t`t`t" -n; Write-Host -f cyan "(Page $pageNum of $totalPages)"
 Write-Host -f yellow "Page Commands`t`t`t`t`t       |$searchmessage   | Exit Commands"
 Write-Host -f yellow "[F]irst [N]ext [+/-]# Lines p[A]ge # [P]revious [L]ast | [<][S]earch[>] [#]Number [C]lear [E]rrors | [D]ump [X]Edit [M]enu [Q]uit" -n; $action = Read-Host " "
 $errormessage = "`t`t`t`t`t"; $searchmessage = " Search Commands`t`t`t"
@@ -182,7 +177,7 @@ else {$errormessage = "Match #$jump is out of range.`t`t"}}
 else {$pos = $searchHits[0]; $errormessage = "Jumped to first match.`t`t`t"}}}
 
 if ($action -match '^A(\d+)$') {$requestedPage = [int]$matches[1]
-if ($requestedPage -lt 1 -or $requestedPage -gt $totalPages) {$errormessage = "Page #$requestedPage is out of range.`t`t`t"}
+if ($requestedPage -lt 1 -or $requestedPage -gt $totalPages + 1) {$errormessage = "Page #$requestedPage is out of range.`t`t"}
 else {$pos = ($requestedPage - 1) * $pageSize}}
 
 switch ($action.ToUpper()) {'F' {$pos = 0}
@@ -203,7 +198,7 @@ if ($null -eq $currentSearchIndex -and $searchHits -ne @()) {$currentSearchIndex
 $pos = $currentSearchIndex}
 'N' {$next = Get-BreakPoint $pos; if ($next -lt $content.Count - 1) {$pos = $next + 1} else {$pos = [Math]::Min($pos + $pageSize, $content.Count - 1)}}
 'P' {$pos = [Math]::Max(0, $pos - $pageSize)}
-'L' {$pos = [Math]::Max(0, $content.Count - $pageSize)}
+'L' {$lastPageStart = [Math]::Max(0, [int]($content.Count / $pageSize) * $pageSize); $pos = $lastPageStart}
 'C' {$searchTerm = $null; $searchHits.Count = 0; $searchHits = @(); $currentSearchIndex = $null}
 'D' {""; gc $log | more; return}
 'X' {edit $log; "" ; return}
