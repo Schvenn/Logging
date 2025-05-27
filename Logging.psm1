@@ -252,6 +252,7 @@ Navigation:
 	[F]irst page
 	[N]ext page
 	[+/-]# to move forward or back a specific # of lines
+ 	p[A]ge # to jump to a specific page
 	[P]revious page
 	[L]ast page
 
