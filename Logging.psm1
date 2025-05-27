@@ -154,7 +154,10 @@ foreach ($line in $pageLines) {if ($line -match '^[-=]{100}$') {Write-Host -Fore
 elseif ($highlight -and $line -match $highlight) {$parts = [regex]::Split($line, "($highlight)")
 foreach ($part in $parts) {if ($part -match "^$highlight$") {Write-Host -f black -b yellow $part -n}
 else {Write-Host -f white $part -n}}; ""}
-else {Write-Host -f white $line}}}
+else {Write-Host -f white $line}}
+# Pad with blank lines if this page has fewer than $pageSize lines
+$linesShown = $end - $start + 1
+if ($linesShown -lt $pageSize) {for ($i = 1; $i -le ($pageSize - $linesShown); $i++) {Write-Host ""}}}
 
 $errormessage = "`t`t`t`t`t"; $searchmessage = " Search Commands`t`t`t"
 # Main menu loop
@@ -177,7 +180,7 @@ else {$errormessage = "Match #$jump is out of range.`t`t"}}
 else {$pos = $searchHits[0]; $errormessage = "Jumped to first match.`t`t`t"}}}
 
 if ($action -match '^A(\d+)$') {$requestedPage = [int]$matches[1]
-if ($requestedPage -lt 1 -or $requestedPage -gt $totalPages + 1) {$errormessage = "Page #$requestedPage is out of range.`t`t"}
+if ($requestedPage -lt 1 -or $requestedPage -gt $totalPages) {$errormessage = "Page #$requestedPage is out of range.`t`t"}
 else {$pos = ($requestedPage - 1) * $pageSize}}
 
 switch ($action.ToUpper()) {'F' {$pos = 0}
@@ -198,7 +201,7 @@ if ($null -eq $currentSearchIndex -and $searchHits -ne @()) {$currentSearchIndex
 $pos = $currentSearchIndex}
 'N' {$next = Get-BreakPoint $pos; if ($next -lt $content.Count - 1) {$pos = $next + 1} else {$pos = [Math]::Min($pos + $pageSize, $content.Count - 1)}}
 'P' {$pos = [Math]::Max(0, $pos - $pageSize)}
-'L' {$lastPageStart = [Math]::Max(0, [int]($content.Count / $pageSize) * $pageSize); $pos = $lastPageStart}
+'L' {$lastPageStart = [Math]::Max(0, [int][Math]::Floor(($content.Count - 1) / $pageSize) * $pageSize); $pos = $lastPageStart}
 'C' {$searchTerm = $null; $searchHits.Count = 0; $searchHits = @(); $currentSearchIndex = $null}
 'D' {""; gc $log | more; return}
 'X' {edit $log; "" ; return}
