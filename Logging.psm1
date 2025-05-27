@@ -163,7 +163,7 @@ $errormessage = "`t`t`t`t`t"; $searchmessage = "Search Commands`t`t`t"
 # Main menu loop
 while ($true) {Show-Page; $pageNum = [math]::Floor($pos / $pageSize) + 1; $totalPages = [math]::Ceiling($content.Count / $pageSize)
 if ($searchHits.Count -gt 0) {$currentMatch = ($searchHits | Where-Object {$_ -eq $pos} | ForEach-Object { [array]::IndexOf($searchHits, $_) + 1 })
-if ($currentMatch) {$searchmessage = "Match $currentMatch of $($searchHits.Count)     `t`t`t"}}
+if ($currentMatch) {$searchmessage = "Match $currentMatch of $($searchHits.Count)`t`t`t"}}
 Write-Host ""; Write-Host -f yellow ("=" * 130); Write-Host -f white "$logName" -n; Write-Host -f red "`t$errormessage`t`t`t`t" -n; Write-Host -f cyan "(Page $pageNum of $totalPages)"
 Write-Host -f yellow "Page Commands`t`t`t`t`t       | $searchmessage   | Exit Commands"
 Write-Host -f yellow "[F]irst [N]ext [+/-]# Lines p[A]ge # [P]revious [L]ast | [<][S]earch[>] [#]Number [C]lear [E]rrors | [D]ump [X]Edit [M]enu [Q]uit" -n; $action = Read-Host " "
