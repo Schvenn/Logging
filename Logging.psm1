@@ -166,7 +166,7 @@ $errormessage = "`t`t`t`t`t"; $searchmessage = "`tSearch Commands`t`t`t`t"
 while ($true) {Show-Page; $pageNum = [math]::Floor($pos / $pageSize) + 1; $totalPages = [math]::Ceiling($content.Count / $pageSize)
 if ($searchHits.Count -gt 0) {$currentMatch = ($searchHits | Where-Object {$_ -eq $pos} | ForEach-Object { [array]::IndexOf($searchHits, $_) + 1 })
 if ($currentMatch) {$searchmessage = " Match $currentMatch of $($searchHits.Count)`t`t`t`t"}}
-Write-Host ""; Write-Host -f yellow ("=" * 110); Write-Host -f white "$logName" -n; Write-Host -f red "`t$errormessage`t`t" -n; Write-Host -f cyan "(Page $pageNum of $totalPages)"
+Write-Host ""; Write-Host -f yellow ("=" * 120); Write-Host -f white "$logName" -n; Write-Host -f red "`t$errormessage`t`t`t" -n; Write-Host -f cyan "(Page $pageNum of $totalPages)"
 Write-Host -f yellow "Page Commands`t`t`t`t      |$searchmessage  | Exit Commands"
 Write-Host -f yellow "[F]irst [N]ext [+/-]# Lines [P]revious [L]ast | [<][S]earch[>] [#]Number [C]lear [E]rrors | [D]ump [X]Edit [M]enu [Q]uit" -n; $action = Read-Host " "
 $errormessage = "`t`t`t`t`t"; $searchmessage = "`tSearch Commands`t`t`t`t"
@@ -201,7 +201,7 @@ $pos = $currentSearchIndex}
 'C' {$searchTerm = $null; $searchHits.Count = 0; $searchHits = @(); $currentSearchIndex = $null}
 'P' {$pos = [Math]::Max(0, $pos - $pageSize)}
 'L' {$pos = [Math]::Max(0, $content.Count - $pageSize)}
-'D' {""; gc $log; return}
+'D' {""; gc $log | more; return}
 'X' {edit $log; "" ; return}
 'M' {return logviewer}
 'Q' {""; return}
