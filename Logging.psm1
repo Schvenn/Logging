@@ -113,30 +113,34 @@ while ($true); return}
 
 # Menu Presentation.
 $transcriptPath = "$powershell\transcripts"
-if (-not $log) {$logs = Get-ChildItem "$transcriptPath\*.log" | Where-Object {$_.Name -match '^Powershell log - \d{2}-\d{2}-\d{4}'}
+
+:mainmenu while ($true) {if (-not $log) {$logs = Get-ChildItem "$transcriptPath\*.log" | Where-Object {$_.Name -match '^Powershell log - \d{2}-\d{2}-\d{4}'}
 if (-not $logs) {Write-Host -f red "`nNo .log files found in the Transcripts directory.`n"; return}
 
-# Extract dates from filenames using fresh match object
-$logsWithDates = foreach ($logFile in $logs) {if ($logFile.Name -match '^Powershell log - (\d{2})-(\d{2})-(\d{4})') {$date = "$($matches[3])-$($matches[1])-$($matches[2])"; $logFile | Add-Member -NotePropertyName LogDate -NotePropertyValue $date -PassThru}}
+# Extract date from filenames.
+$logsWithDates = foreach ($logFile in $logs) {if ($logFile.Name -match '^Powershell log - (\d{2})-(\d{2})-(\d{4})') {$date = "$($matches[3])-$($matches[1])-$($matches[2])"
+$logFile | Add-Member -NotePropertyName LogDate -NotePropertyValue $date -PassThru}}
 if (-not $logsWithDates) {Write-Host -f red "`nNo logs matched filename date format.`n"; return}
+
 $grouped = $logsWithDates | Group-Object LogDate | Sort-Object Name -Descending
+$selectedLogs = $null
 
 # Date range selector.
-if ($logsWithDates.Count -gt 30) {while ($true) {cls
-Write-Host -f white "Select a date:"; Write-Host -f cyan ("-" * 45)
+while ($true) {cls; Write-Host -f white "Select a date:"; Write-Host -f cyan ("-" * 45)
 for ($i = 0; $i -lt $grouped.Count; $i++) {$date = $grouped[$i].Name; $count = $grouped[$i].Group.Count; Write-Host "$($i+1):" -f cyan -n; Write-Host " $date ($count logs)" -f white}
-Write-Host -f white "`nSelect a date range (or Q to quit)" -n; $input = Read-Host " "
+Write-Host -f white "`nSelect a date range or Q to quit" -n; $input = Read-Host " "
 if ($input -match '^[Qq]$') {""; return}
-if ($input -match '^\d+$') {[int]$dateChoice = $input; if ($dateChoice -ge 1 -and $dateChoice -le $grouped.Count) {$logs = $grouped[$dateChoice - 1].Group; break}}}}
-if (-not $logs -or $logs.Count -eq 0) {Write-Host -f red "`nNo logs found for that date.`n"; return}
+if ($input -match '^\d+$') {[int]$dateChoice = $input
+if ($dateChoice -ge 1 -and $dateChoice -le $grouped.Count) {$selectedLogs = $grouped[$dateChoice - 1].Group; break}}}
 
-# Individual file selector.
-while ($true) {cls
-Write-Host -f white "Select a file:"; Write-Host -f cyan ("-" * 45)
-for ($i = 0; $i -lt $logs.Count; $i++) {Write-Host "$($i+1):" -f cyan -n; Write-Host " $($logs[$i].Name)" -f white}
-Write-Host -f white "`nSelect a log to view (or Q to quit)" -n; $input = Read-Host " "
-if ($input -match '^[Qq]$') {""; return}
-if ($input -match '^\d+$') {[int]$choice = $input; if ($choice -ge 1 -and $choice -le $logs.Count) {$log = $logs[$choice - 1].FullName; break}}}}
+# File selector.
+while ($true) {cls; Write-Host -f white "Select a file:"; Write-Host -f cyan ("-" * 45); Write-Host -f cyan "«" -n; Write-Host -f white "    .."
+for ($i = 0; $i -lt $selectedLogs.Count; $i++) {Write-Host -f cyan "$($i+1):" -n; Write-Host -f white " $($selectedLogs[$i].Name)" -n; $sizeKB = try {[math]::Round(((Get-Item $selectedLogs[$i]).Length + 500) / 1KB, 0)} catch {" "}; Write-Host -f white " [$sizeKB KB]"}
+Write-Host -f white "`nSelect a log to view or Q to quit" -n; $input = Read-Host " "
+if ($input -match '^[Qq]$') {return}
+if ($input -match '(^0$|^$)') {return logviewer}
+if ($input -match '^\d+$') {[int]$choice = $input
+if ($choice -ge 1 -and $choice -le $selectedLogs.Count) {$log = $selectedLogs[$choice - 1].FullName; break}}}}break}
 
 # Error-checking
 if (-not (Test-Path $log)) {Write-Host -f red "`nLog file not found.`n"; return}
@@ -162,7 +166,7 @@ if ($linesShown -lt $pageSize) {for ($i = 1; $i -le ($pageSize - $linesShown); $
 $errormessage = ""; $searchmessage = "Search Commands"
 # Main menu loop
 while ($true) {Show-Page; $pageNum = [math]::Floor($pos / $pageSize) + 1; $totalPages = [math]::Ceiling($content.Count / $pageSize)
-if ($searchHits.Count -gt 0) {$currentMatch = ($searchHits | Where-Object {$_ -eq $pos} | ForEach-Object { [array]::IndexOf($searchHits, $_) + 1 })
+if ($searchHits.Count -gt 0) {$currentMatch = ($searchHits | Where-Object {$_ -eq $pos} | ForEach-Object {[array]::IndexOf($searchHits, $_) + 1})
 if ($currentMatch) {$searchmessage = "Match $currentMatch of $($searchHits.Count)"}}
 ""; Write-Host -f yellow ("=" * 130)
 $left = "$logName".PadRight(57); $middle = "$errormessage".PadRight(54); $right = "(Page $pageNum of $totalPages)"
@@ -192,7 +196,7 @@ if ($null -eq $currentSearchIndex -and $searchHits -ne @()) {$currentSearchIndex
 $pos = $currentSearchIndex}
 'S' {Write-Host -f green "Keyword to search forward from this point in the logs" -n; $searchTerm = Read-Host " "
 if (-not $searchTerm) {$errormessage = "No keyword entered."; $searchTerm = $null; $searchHits = @(); break}
-$pattern = "(?i)" + [regex]::Escape($searchTerm); $searchHits = @(0..($content.Count - 1) | Where-Object { $content[$_] -match $pattern })
+$pattern = "(?i)" + [regex]::Escape($searchTerm); $searchHits = @(0..($content.Count - 1) | Where-Object {$content[$_] -match $pattern})
 if (-not $searchHits) {$errormessage = "Keyword not found in file."; $searchHits = @(); $currentSearchIndex = -1}
 $currentSearchIndex = $searchHits | Where-Object {$_ -gt $pos} | Select-Object -First 1
 if ($null -eq $currentSearchIndex) {Write-Host -f green "No match found after this point. Jump to first match? (Y/N)" -n; $wrap = Read-Host " "
@@ -252,7 +256,7 @@ Navigation:
 	[F]irst page
 	[N]ext page
 	[+/-]# to move forward or back a specific # of lines
- 	p[A]ge # to jump to a specific page
+	p[A]ge # to jump to a specific page
 	[P]revious page
 	[L]ast page
 
