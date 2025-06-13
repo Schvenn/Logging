@@ -62,21 +62,6 @@ Write-Host "$($position.trim())" -f white; Write-Host ("-"*100) -f yellow}}; ""}
 function log ($mode, [switch]$help){# Toggle PowerShell logging.
 $logdirectory = Join-Path $powershell transcripts; $logfile = "$logdirectory\Powershell log - $(Get-Date -Format 'MM-dd-yyyy_HH꞉mm').log"
 
-if ($help) {function scripthelp ($section) {# (Internal) Generate the help sections from the comments section of the script.
-""; Write-Host -f yellow ("-" * 100); $pattern = "(?ims)^## ($section.*?)(##|\z)"; $match = [regex]::Match($scripthelp, $pattern); $lines = $match.Groups[1].Value.TrimEnd() -split "`r?`n", 2; Write-Host $lines[0] -f yellow; Write-Host -f yellow ("-" * 100)
-if ($lines.Count -gt 1) {$lines[1] | Out-String | Out-Host -Paging}; Write-Host -f yellow ("-" * 100)}
-$scripthelp = Get-Content -Raw -Path $PSCommandPath; $sections = [regex]::Matches($scripthelp, "(?im)^## (.+?)(?=\r?\n)")
-if ($sections.Count -eq 1) {cls; Write-Host "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)) Help:" -f cyan; scripthelp $sections[0].Groups[1].Value; ""; return}
-$selection = $null
-do {cls; Write-Host "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)) Help Sections:`n" -f cyan; for ($i = 0; $i -lt $sections.Count; $i++) {
-"{0}: {1}" -f ($i + 1), $sections[$i].Groups[1].Value}
-if ($selection) {scripthelp $sections[$selection - 1].Groups[1].Value}
-$input = Read-Host "`nEnter a section number to view"
-if ($input -match '^\d+$') {$index = [int]$input
-if ($index -ge 1 -and $index -le $sections.Count) {$selection = $index}
-else {$selection = $null}} else {""; return}}
-while ($true); return}
-
 # Start and Stop Logging functions.
 function startlogging {""; cleanlogfiles; Start-Transcript "$logfile" | Write-Host -f green; $global:TranscriptRunning = $true; ""; return}
 function stoplogging {""; Write-Host ("="*100); Write-Host "ERROR LOGS:"; Write-Host ("="*100); lasterrors 100; $error.clear(); Stop-Transcript | Write-Host -f darkgray; $global:TranscriptRunning = $false; cleanlogfiles; return}
@@ -90,17 +75,35 @@ elseif ($mode -match "(?i)^status$") {$status = if ($global:TranscriptRunning -e
 if ($mode -and $mode -notmatch "(?i)^st(art|op|atus)$") {Write-Host -f cyan "`nUsage: log <start/stop/status>`n"; return}
 
 # No mode specified.
-elseif ($global:TranscriptRunning = $true) {stoplogging; return}
+elseif ($global:TranscriptRunning -eq $true) {stoplogging; return}
 else {startlogging; return}}
 
 function logviewer ($log, [switch]$help) {# Transations Log Viewer.
 ""
 
-if ($help) {function scripthelp ($section) {# (Internal) Generate the help sections from the comments section of the script.
-Write-Host -f yellow ("-" * 100); $pattern = "(?ims)^## ($section.*?)(##|\z)"; $match = [regex]::Match($scripthelp, $pattern); $lines = $match.Groups[1].Value.TrimEnd() -split "`r?`n", 2; Write-Host $lines[0] -f yellow; Write-Host -f yellow ("-" * 100)
-if ($lines.Count -gt 1) {$lines[1] | Out-String | Out-Host -Paging}; Write-Host -f yellow ("-" * 100)}
+if ($help) {# Inline help.
+function wordwrap ($field, [int]$maximumlinelength = 65) {# Modify fields sent to it with proper word wrapping.
+if ($null -eq $field -or $field.Length -eq 0) {return $null}
+$breakchars = ',.;?!\/ '; $wrapped = @()
+
+foreach ($line in $field -split "`n") {if ($line.Trim().Length -eq 0) {$wrapped += ''; continue}
+$remaining = $line.Trim()
+while ($remaining.Length -gt $maximumlinelength) {$segment = $remaining.Substring(0, $maximumlinelength); $breakIndex = -1
+
+foreach ($char in $breakchars.ToCharArray()) {$index = $segment.LastIndexOf($char)
+if ($index -gt $breakIndex) {$breakChar = $char; $breakIndex = $index}}
+if ($breakIndex -lt 0) {$breakIndex = $maximumlinelength - 1; $breakChar = ''}
+$chunk = $segment.Substring(0, $breakIndex + 1).TrimEnd(); $wrapped += $chunk; $remaining = $remaining.Substring($breakIndex + 1).TrimStart()}
+
+if ($remaining.Length -gt 0) {$wrapped += $remaining}}
+return ($wrapped -join "`n")}
+
+function scripthelp ($section) {# (Internal) Generate the help sections from the comments section of the script.
+""; Write-Host -f yellow ("-" * 100); $pattern = "(?ims)^## ($section.*?)(##|\z)"; $match = [regex]::Match($scripthelp, $pattern); $lines = $match.Groups[1].Value.TrimEnd() -split "`r?`n", 2; Write-Host $lines[0] -f yellow; Write-Host -f yellow ("-" * 100)
+if ($lines.Count -gt 1) {wordwrap $lines[1] 100| Out-String | Out-Host -Paging}; Write-Host -f yellow ("-" * 100)}
 $scripthelp = Get-Content -Raw -Path $PSCommandPath; $sections = [regex]::Matches($scripthelp, "(?im)^## (.+?)(?=\r?\n)")
 if ($sections.Count -eq 1) {cls; Write-Host "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)) Help:" -f cyan; scripthelp $sections[0].Groups[1].Value; ""; return}
+
 $selection = $null
 do {cls; Write-Host "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)) Help Sections:`n" -f cyan; for ($i = 0; $i -lt $sections.Count; $i++) {
 "{0}: {1}" -f ($i + 1), $sections[$i].Groups[1].Value}
