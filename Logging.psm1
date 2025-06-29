@@ -52,7 +52,12 @@ else {Remove-Item $_.FullName -Force}}}}
 $logFiles = Get-ChildItem -Path $logDirectory -Filter *.log
 
 # Obtain remaining log files.
-foreach ($logfile in $logFiles) {trimlogfile $logfile}}
+foreach ($logfile in $logFiles) {trimlogfile $logfile}
+
+# Compress log files over 1KB and older than 1 hour
+Get-ChildItem -Path $logdir -Filter *.log -Recurse | Where-Object {$_.Length -gt 1KB -and $_.LastWriteTime -lt (Get-Date).AddHours(-1)} | ForEach-Object {$gzipPath = "$($_.FullName).gz"
+try {$sourceStream = $_.OpenRead(); $targetStream = [System.IO.File]::Create($gzipPath); $gzipStream = New-Object System.IO.Compression.GZipStream($targetStream, [System.IO.Compression.CompressionMode]::Compress); $sourceStream.CopyTo($gzipStream); $gzipStream.Close(); $targetStream.Close(); $sourceStream.Close(); Remove-Item $_.FullName -Force}
+catch {Write-Warning "Failed to compress $($_.FullName): $_"}}}
 
 function lasterrors ($numberoferrors = 5) {# Recall the last number of error messages that PowerShell generated, excluding typos.
 $numberoferrors = [int]$numberoferrors; if ($global:Error.Count -gt 0) {""; Write-Host ("-"*100) -f yellow}; $global:Error | Where-Object {$_.ToString() -notmatch 'is not recognized as a name of a cmdlet'} | Select-Object -First $numberoferrors | ForEach-Object {$e = $_; if ($e.Exception.Message) {Write-Host "$($e.Exception.Message)" -f red
@@ -121,8 +126,8 @@ while ($true); return}
 # Menu Presentation.
 $transcriptPath = "$powershell\transcripts"
 
-:mainmenu while ($true) {if (-not $log) {$logs = Get-ChildItem "$transcriptPath\*.log" | Where-Object {$_.Name -match '^Powershell log - \d{2}-\d{2}-\d{4}'}
-if (-not $logs) {Write-Host -f red "`nNo .log files found in the Transcripts directory.`n"; return}
+:mainmenu while ($true) {if (-not $log) {$logs = Get-ChildItem $transcriptPath -Include *.log, *.log.gz -Recurse | Where-Object {$_.Name -match '^Powershell log - \d{2}-\d{2}-\d{4}'}
+if (-not $logs) {Write-Host -f red "`nNo .log or .log.gz files found in the Transcripts directory.`n"; return}
 
 # Extract date from filenames.
 $logsWithDates = foreach ($logFile in $logs) {if ($logFile.Name -match '^Powershell log - (\d{2})-(\d{2})-(\d{4})') {$date = "$($matches[3])-$($matches[1])-$($matches[2])"
@@ -153,7 +158,10 @@ if ($choice -ge 1 -and $choice -le $selectedLogs.Count) {$log = $selectedLogs[$c
 if (-not (Test-Path $log)) {Write-Host -f red "`nLog file not found.`n"; return}
 
 # Read log content once
-$content = Get-Content $log
+if ($log -like '*.gz') {try {$stream = [System.IO.File]::OpenRead($log); $gzip = New-Object System.IO.Compression.GZipStream($stream, [System.IO.Compression.CompressionMode]::Decompress); $reader = New-Object System.IO.StreamReader($gzip); $text = $reader.ReadToEnd(); $reader.Close(); $gzip.Close(); $stream.Close(); $content = $text -split "`r?`n"}
+catch {Write-Host -f red "`nFailed to decompress .gz log file.`n"; return}}
+else {$content = Get-Content $log}
+
 if (-not $content) {Write-Host -f red "`nFile is empty.`n"; return}
 
 $separators = @(0) + (0..($content.Count - 1) | Where-Object {$content[$_] -match '^[=]{100}$'}); $pageSize = 35; $pos = 0; $logName = [System.IO.Path]::GetFileName($log); $searchHits = @(); $currentSearchIndex = -1
