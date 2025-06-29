@@ -173,14 +173,14 @@ if ($linesShown -lt $pageSize) {for ($i = 1; $i -le ($pageSize - $linesShown); $
 $errormessage = ""; $searchmessage = "Search Commands"
 # Main menu loop
 while ($true) {Show-Page; $pageNum = [math]::Floor($pos / $pageSize) + 1; $totalPages = [math]::Ceiling($content.Count / $pageSize)
-if ($searchHits.Count -gt 0) {$currentMatch = ($searchHits | Where-Object {$_ -eq $pos} | ForEach-Object {[array]::IndexOf($searchHits, $_) + 1})
-if ($currentMatch) {$searchmessage = "Match $currentMatch of $($searchHits.Count)"}}
+if ($searchHits.Count -gt 0) {$currentMatch = [array]::IndexOf($searchHits, $pos); if ($currentMatch -ge 0) {$searchmessage = "Match $($currentMatch + 1) of $($searchHits.Count)"}
+else {$searchmessage = "Search active ($($searchHits.Count) matches)"}}
 ""; Write-Host -f yellow ("=" * 130)
 $left = "$logName".PadRight(57); $middle = "$errormessage".PadRight(54); $right = "(Page $pageNum of $totalPages)"
 Write-Host -f white $left -n; Write-Host -f red $middle -n; Write-Host -f cyan $right
 $left = "Page Commands".PadRight(55); $middle = "| $searchmessage ".PadRight(43); $right = "| Exit Commands"
 Write-Host -f yellow ($left + $middle + $right)
-Write-Host -f yellow "[F]irst [N]ext [+/-]# Lines p[A]ge # [P]revious [L]ast | [<][S]earch[>] [#]Match [C]lear [E]rrors | [D]ump [X]Edit [M]enu [Q]uit " -n; $action = getaction
+Write-Host -f yellow "[F]irst [N]ext [+/-]# Lines p[A]ge # [P]revious [L]ast | [<][S]earch[>] [#]Match [C]lear [E]rrors | [D]ump [X]Edit [M]enu [Q]uit " -n
 $errormessage = ""; $searchmessage = "Search Commands"
 
 function getaction {[string]$buffer = ""
@@ -202,6 +202,8 @@ switch ($char) {',' {return '<'}
 {$_ -match '(?i)[B-Z]'} {return $char.ToString().ToUpper()}
 {$_ -match '[A#\+\-\d]'} {$buffer += $char}
 default {$buffer = ""}}}}}}
+
+$action = getaction
 
 switch ($action.ToString().ToUpper()) {'F' {$pos = 0}
 'N' {$next = Get-BreakPoint $pos; if ($next -lt $content.Count - 1) {$pos = $next + 1}
@@ -227,7 +229,7 @@ $pos = $currentSearchIndex}
 'E' {$errIndex = $content.IndexOf("ERROR LOGS:")}
 'D' {""; gc $script:file | more; return}
 'X' {edit $script:file; "" ; return}
-'M' {if ($script:filearray) {fileviewer -filearray $script:filearray; return} else {return fileviewer (Get-Location)}}
+'M' {return logviewer}
 'Q' {"`n"; return}
 
 default {if ($action -match '^[\+\-](\d+)$') {$offset = [int]$action; $newPos = $pos + $offset; $pos = [Math]::Max(0, [Math]::Min($newPos, $content.Count - $pageSize))}
@@ -244,8 +246,7 @@ elseif ($action -match '^A(\d+)$') {$requestedPage = [int]$matches[1]
 if ($requestedPage -lt 1 -or $requestedPage -gt $totalPages) {$errormessage = "Page #$requestedPage is out of range."}
 else {$pos = ($requestedPage - 1) * $pageSize}}
 
-else {Write-Host -f red "`nInvalid input.`n"}}}
-}}
+else {Write-Host -f red "`nInvalid input.`n"}}}}}
 
 Export-ModuleMember -Function lasterrors, log, logviewer
 
