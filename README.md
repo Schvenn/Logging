@@ -28,11 +28,12 @@ Once inside the viewer, the options include:
 
 Navigation:
 
-	[F]irst page
-	[N]ext page
-	[+/-]# to move forward or back a specific # of lines
-	[P]revious page
-	[L]ast page
+	[F]irst page / [HOME]
+	[N]ext page / [PgDn] / [Right]
+	[+/-]# to move forward or back a specific # of lines / [Down] / [Up]
+	p[A]ge # to jump to a specific page
+	[P]revious page / [PgUp] / [Left]
+	[L]ast page [END]
 
 Search:
 
