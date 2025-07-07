@@ -180,7 +180,11 @@ function showpage {cls; $start = $pos; $end = getbreakpoint $start; $pageLines =
 foreach ($line in $pageLines) {if ($highlight -and $line -match $highlight) {$parts = [regex]::Split($line, "($highlight)")
 foreach ($part in $parts) {if ($part -match "^$highlight$") {Write-Host -f black -b yellow $part -n}
 else {Write-Host -f white $part -n}}; ""}
-else {Write-Host -f white $line}}}
+else {Write-Host -f white $line}}
+
+# Pad with blank lines if this page has fewer than $pageSize lines
+$linesShown = $end - $start + 1
+if ($linesShown -lt $pageSize) {for ($i = 1; $i -le ($pageSize - $linesShown); $i++) {Write-Host ""}}}
 
 # Main menu loop
 $statusmessage = ""; $errormessage = ""; $searchmessage = "Search Commands"
