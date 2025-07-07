@@ -282,19 +282,19 @@ PowerShell's Start and Stop Transcript commands are great for logging, but the r
 	• When logging is stopped, the module will append the last 100 errors before closing the transcript.
 	• Logs will then be cleaned by removing any that are over 30 days old, stripping away the default headers and footers, adding visual separators and trimming error text.
 	• A supplemental log viewer is also provided which features a file selection menu, internal file navigation and search capabilities.
-## lasterrors 
+## LastErrors 
 
 This function recalls the last set of error messages that PowerShell generated, excluding command-not-found errors, formatted on screen for easier reading.
 Optionally specify a # of errors to view. The default is 5.
 This function is used at the end of the command to stop logging, in order to ensure that centralized error tracking is included.
 
 Usage: lasterrors #
-## log
+## Log
 
 Turn transaction logging in PowerShell on or off, or check on its status.
 
 Usage: log <start/stop/status> -help
-## Logviewer
+## LogViewer
 This logviewer will find all properly formatted .log files in the Transcripts directory and present them on screen for easy viewing.
 If no file is provided, a menu of Transcripts organized by date will be presented for selection.
 
@@ -326,4 +326,26 @@ Exit Commands:
 [X]Edit using Notepad++, if available. Otherwise, use Notepad.
 [M]enu to open the file selection menu
 [Q]uit
+## License
+MIT License
+
+Copyright © 2025 Craig Plath
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
+copies of the Software, and to permit persons to whom the Software is 
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in 
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
+THE SOFTWARE.
 ##>
