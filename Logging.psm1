@@ -55,7 +55,7 @@ $logFiles = Get-ChildItem -Path $logDirectory -Filter *.log
 foreach ($logfile in $logFiles) {trimlogfile $logfile}
 
 # Compress log files over 1KB and older than 1 hour
-Get-ChildItem -Path $logdir -Filter *.log -Recurse | Where-Object {$_.Length -gt 1KB -and $_.LastWriteTime -lt (Get-Date).AddHours(-1)} | ForEach-Object {$gzipPath = "$($_.FullName).gz"
+Get-ChildItem -Path $logDirectory -Filter *.log -Recurse | Where-Object {$_.LastWriteTime -lt (Get-Date).AddHours(-1)} | ForEach-Object {$gzipPath = "$($_.FullName).gz"
 try {$sourceStream = $_.OpenRead(); $targetStream = [System.IO.File]::Create($gzipPath); $gzipStream = New-Object System.IO.Compression.GZipStream($targetStream, [System.IO.Compression.CompressionMode]::Compress); $sourceStream.CopyTo($gzipStream); $gzipStream.Close(); $targetStream.Close(); $sourceStream.Close(); Remove-Item $_.FullName -Force}
 catch {Write-Warning "Failed to compress $($_.FullName): $_"}}}
 
@@ -69,7 +69,7 @@ $logdirectory = Join-Path $powershell transcripts; $logfile = "$logdirectory\Pow
 
 # Start and Stop Logging functions.
 function startlogging {""; cleanlogfiles; Start-Transcript "$logfile" | Write-Host -f green; $global:TranscriptRunning = $true; ""; return}
-function stoplogging {""; Write-Host ("="*100); Write-Host "ERROR LOGS:"; Write-Host ("="*100); lasterrors 100; $error.clear(); Stop-Transcript | Write-Host -f darkgray; $global:TranscriptRunning = $false; cleanlogfiles; return}
+function stoplogging {""; Write-Host ("="*100); Write-Host "ERROR LOGS:"; Write-Host ("="*100); lasterrors 100 *>&1 | Out-File $logfile; $error.clear(); Stop-Transcript | Write-Host -f darkgray; $global:TranscriptRunning = $false; cleanlogfiles; return}
 
 # Mode Start/Stop/Status.
 if ($mode -match "(?i)^start$") {if ($global:TranscriptRunning -eq $false) {startlogging; return} else {Write-Host -f cyan "`nLogging is already running.`n"; return}}
@@ -111,22 +111,65 @@ if ($post) {Write-Host ""}}
 function logviewer ($log, [switch]$help) {# Transactions Log Viewer.
 ""
 
-if ($help) {# Inline help.
-function scripthelp ($section) {# (Internal) Generate the help sections from the comments section of the script.
-""; Write-Host -f yellow ("-" * 100); $pattern = "(?ims)^## ($section.*?)(##|\z)"; $match = [regex]::Match($scripthelp, $pattern); $lines = $match.Groups[1].Value.TrimEnd() -split "`r?`n", 2; Write-Host $lines[0] -f yellow; Write-Host -f yellow ("-" * 100)
-if ($lines.Count -gt 1) {wordwrap $lines[1] 100| Out-String | Out-Host -Paging}; Write-Host -f yellow ("-" * 100)}
-$scripthelp = Get-Content -Raw -Path $PSCommandPath; $sections = [regex]::Matches($scripthelp, "(?im)^## (.+?)(?=\r?\n)")
-if ($sections.Count -eq 1) {cls; Write-Host "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)) Help:" -f cyan; scripthelp $sections[0].Groups[1].Value; ""; return}
+function help {# Inline help.
+# Select content.
+$scripthelp = Get-Content -Raw -Path $PSCommandPath; $sections = [regex]::Matches($scripthelp, "(?im)^## (.+?)(?=\r?\n)"); $selection = $null; $lines = @(); $wrappedLines = @(); $position = 0; $pageSize = 30; $inputBuffer = ""
 
-$selection = $null
-do {cls; Write-Host "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)) Help Sections:`n" -f cyan; for ($i = 0; $i -lt $sections.Count; $i++) {
-"{0}: {1}" -f ($i + 1), $sections[$i].Groups[1].Value}
-if ($selection) {scripthelp $sections[$selection - 1].Groups[1].Value}
-$input = Read-Host "`nEnter a section number to view"
-if ($input -match '^\d+$') {$index = [int]$input
-if ($index -ge 1 -and $index -le $sections.Count) {$selection = $index}
-else {$selection = $null}} else {""; return}}
-while ($true); return}
+function scripthelp ($section) {$pattern = "(?ims)^## ($([regex]::Escape($section)).*?)(?=^##|\z)"; $match = [regex]::Match($scripthelp, $pattern); $lines = $match.Groups[1].Value.TrimEnd() -split "`r?`n", 2; if ($lines.Count -gt 1) {$wrappedLines = (wordwrap $lines[1] 100) -split "`n", [System.StringSplitOptions]::None}
+else {$wrappedLines = @()}
+$position = 0}
+
+# Display Table of Contents.
+while ($true) {cls; Write-Host -f cyan "$(Get-ChildItem (Split-Path $PSCommandPath) | Where-Object { $_.FullName -ieq $PSCommandPath } | Select-Object -ExpandProperty BaseName) Help Sections:`n"
+
+if ($sections.Count -gt 7) {$half = [Math]::Ceiling($sections.Count / 2)
+for ($i = 0; $i -lt $half; $i++) {$leftIndex = $i; $rightIndex = $i + $half; $leftNumber  = "{0,2}." -f ($leftIndex + 1); $leftLabel   = " $($sections[$leftIndex].Groups[1].Value)"; $leftOutput  = [string]::Empty
+
+if ($rightIndex -lt $sections.Count) {$rightNumber = "{0,2}." -f ($rightIndex + 1); $rightLabel  = " $($sections[$rightIndex].Groups[1].Value)"; Write-Host -f cyan $leftNumber -n; Write-Host -f white $leftLabel -n; $pad = 40 - ($leftNumber.Length + $leftLabel.Length)
+if ($pad -gt 0) {Write-Host (" " * $pad) -n}; Write-Host -f cyan $rightNumber -n; Write-Host -f white $rightLabel}
+else {Write-Host -f cyan $leftNumber -n; Write-Host -f white $leftLabel}}}
+
+else {for ($i = 0; $i -lt $sections.Count; $i++) {Write-Host -f cyan ("{0,2}. " -f ($i + 1)) -n; Write-Host -f white "$($sections[$i].Groups[1].Value)"}}
+
+# Display Header.
+line yellow 100
+if ($lines.Count -gt 0) {Write-Host  -f yellow $lines[0]}
+else {Write-Host "Choose a section to view." -f darkgray}
+line yellow 100
+
+# Display content.
+$end = [Math]::Min($position + $pageSize, $wrappedLines.Count)
+for ($i = $position; $i -lt $end; $i++) {Write-Host -f white $wrappedLines[$i]}
+
+# Pad display section with blank lines.
+for ($j = 0; $j -lt ($pageSize - ($end - $position)); $j++) {Write-Host ""}
+
+# Display menu options.
+line yellow 100; Write-Host -f white "[↑/↓]  [PgUp/PgDn]  [Home/End]  |  [#] Select section  |  [Q] Quit  " -n; if ($inputBuffer.length -gt 0) {Write-Host -f cyan "section: $inputBuffer" -n}; $key = [System.Console]::ReadKey($true)
+
+# Define interaction.
+switch ($key.Key) {'UpArrow' {if ($position -gt 0) { $position-- }; $inputBuffer = ""}
+'DownArrow' {if ($position -lt ($wrappedLines.Count - $pageSize)) { $position++ }; $inputBuffer = ""}
+'PageUp' {$position -= 30; if ($position -lt 0) {$position = 0}; $inputBuffer = ""}
+'PageDown' {$position += 30; $maxStart = [Math]::Max(0, $wrappedLines.Count - $pageSize); if ($position -gt $maxStart) {$position = $maxStart}; $inputBuffer = ""}
+'Home' {$position = 0; $inputBuffer = ""}
+'End' {$maxStart = [Math]::Max(0, $wrappedLines.Count - $pageSize); $position = $maxStart; $inputBuffer = ""}
+
+'Enter' {if ($inputBuffer -eq "") {"`n"; return}
+elseif ($inputBuffer -match '^\d+$') {$index = [int]$inputBuffer
+if ($index -ge 1 -and $index -le $sections.Count) {$selection = $index; $pattern = "(?ims)^## ($([regex]::Escape($sections[$selection-1].Groups[1].Value)).*?)(?=^##|\z)"; $match = [regex]::Match($scripthelp, $pattern); $block = $match.Groups[1].Value.TrimEnd(); $lines = $block -split "`r?`n", 2
+if ($lines.Count -gt 1) {$wrappedLines = (wordwrap $lines[1] 100) -split "`n", [System.StringSplitOptions]::None}
+else {$wrappedLines = @()}
+$position = 0}}
+$inputBuffer = ""}
+
+default {$char = $key.KeyChar
+if ($char -match '^[Qq]$') {"`n"; return}
+elseif ($char -match '^\d$') {$inputBuffer += $char}
+else {$inputBuffer = ""}}}}}
+
+# External call to help.
+if ($help) {help; return}
 
 # Menu Presentation.
 $transcriptPath = "$powershell\transcripts"
@@ -275,7 +318,7 @@ else {$pos = ($requestedPage - 1) * $pageSize}}
 else {$errormessage = "Invalid input."; $statusmessage = $null}}}}
 }
 
-Export-ModuleMember -Function lasterrors, log, logviewer
+Export-ModuleMember -Function cleanlogfiles, lasterrors, log, logviewer
 
 <#
 ## Overview
